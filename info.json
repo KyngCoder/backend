@@ -1,12 +1,20 @@
+
+
 {
-    "first_name": "Dylan",
-    "last_name": "Heslop",
-    "gender": "male",
-    "date_of_birth": "2003-02-18",
-    "email_address": "heslopd23@gmail.com",
-    "phone_number": "876-313-0347",
-    "nationality": "Jamaican",
-    "language": "english",
-    "username": "heslopd",
-    "password": "heslop321"
+    "id": 1,
+    "property_id": 5,
+    "floor": 4,
+    "room_type_id": 5,
+    "amenties_id": 6,
+    "availability_status": true,
+    "ratings": 4.5,
+    "images": "imageurl",
+    "description": "Best Hotel Room",
+    "updated_at": "2022-04-04",
+    "num_beds": 78,
+    "max_guests": 10,
+    "num_baths": 23
+
+
 }
+
