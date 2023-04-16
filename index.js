@@ -21,6 +21,25 @@ app.use(bodyParser.urlencoded({
     extended: true
 }));
 
+// app.get('*', (req, res) => {})
+
+// error handling for non-existing routes
+// app.use((req, res, next) => {
+//   const error = new Error('Not found');
+//   error.status = 404;
+//   next(error);
+// });
+
+// // define an error handler middleware
+// app.use((err, req, res, next) => {
+//   res.status(err.status || 500);
+//   res.json({
+//     error: {
+//       message: err.message
+//     }
+//   });
+// });
+
 //connecting to mysql
 
 const db = mysql.createConnection({
@@ -47,7 +66,6 @@ app.get("/user", (req, res)=>{
         return res.json(data)
     }) 
 })
-
 
 // request to get a specific user
 app.get("/user/:id", (req, res) => {
@@ -146,6 +164,9 @@ app.post('/createUser', (req, res) => {
       });
     });
   });
+
+
+
   
 
 // Login route
@@ -198,7 +219,7 @@ app.post('/createProperty', (req, res) => {
   console.log(property)
   // insert the location details into the location table
   const locationQuery = `INSERT INTO location (longitude, latitude, street_address, location_name) VALUES (?, ?, ?, ?)`;
-  const locationValues = [property.longitude, property.latitude, property.street_address,property.num_rooms, property.location_name];
+  const locationValues = [property.location.longitude, property.location.latitude, property.location.street_address, property.location.location_name];
   
   db.query(locationQuery, locationValues, (err, locationResult) => {
     if (err) {
@@ -208,8 +229,8 @@ app.post('/createProperty', (req, res) => {
       const locationId = locationResult.insertId;
       
       // insert the property details into the property table, using the locationId as a foreign key
-      const propertyQuery = `INSERT INTO property (property_name, description, ratings, property_type, image, has_owner, owner_details,updated_at,num_rooms, location_id) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)`;
-      const propertyValues = [property.property_name, property.description, property.ratings, property.property_type, property.image, property.has_owner, property.owner_details, locationId];
+      const propertyQuery = `INSERT INTO property (property_name, description, ratings, property_type, image, updated_at,num_rooms, location_id) VALUES (?, ?, ?, ?, ?, NOW(), ?, ? )`;
+      const propertyValues = [property.property_name, property.description, property.ratings, property.property_type, property.image, property.num_rooms, locationId  ];
       
       db.query(propertyQuery, propertyValues, (err, propertyResult) => {
         if (err) {
@@ -225,8 +246,113 @@ app.post('/createProperty', (req, res) => {
 });
 
 app.get('/properties', (req, res) => {
-  const query = `SELECT property.*, location.* FROM property INNER JOIN location ON property.location_id = location.id`;
+  const query = `SELECT property.*, location.* FROM property INNER JOIN location ON property.location_id = location.id `;
   db.query(query, (error, results) => {
+    if (error) {
+      console.error(error);
+      res.status(500).send('Error retrieving properties');
+    } else {
+      const properties = results.map(result => {
+        const { id, property_name, description, ratings, property_type, image, has_owner, owner_details, location_id, longitude, latitude, street_address,num_rooms, location_name, created_at, updated_at } = result;
+        return {
+          id,
+          property_name,
+          description,
+          ratings,
+          property_type,
+          image,
+          has_owner,
+          owner_details,
+          num_rooms,
+          location: {
+            id: location_id,
+            longitude,
+            latitude,
+            street_address,
+            location_name
+          },
+          created_at,
+          updated_at
+        };
+      });
+      res.json(properties);
+    }
+  });
+});
+
+app.get('/amenities', (req, res) => {
+  const query = "SELECT * FROM amenitieslist"
+
+  
+  db.query(query, (err, response) => {
+
+    if(err) {
+      console.log(err)
+      res.status(500).send({error: "An error has occured"})
+      return
+      // throw err
+
+    }else if(response.length == 0) {
+      res.status(500).send({error: "An error has occured"})
+    }else {
+      res.status(200).send(response)
+    }
+  })
+
+})
+
+app.post('/amentity/add', (req, res) => {
+
+  const data = req.body
+
+  console.log(data)
+
+  const query = "INSERT INTO amenitieslist (amenities_type, amenities_name, amenities_icon, external_price) VALUES (?,?,?,?)"
+
+  db.query(query, [data.amenities_type, data.amenities_name, data.amenities_icon, data.external_price], (err, response) => {
+
+    if(err) {
+      console.log(err)
+      res.status(500).send({error: "An error has occured"})
+      return
+      // throw err
+
+    }else if(response.length == 0) {
+      res.status(500).send({error: "An error has occured"})
+    }else {
+      res.status(200).send(response)
+    }
+
+  })
+})
+
+app.get('/amenities/:id', (req, res) => {
+  const query = "SELECT * FROM amenitieslist WHERE id = ?"
+
+  
+  db.query(query, [req.params.id], (err, response) => {
+
+    if(err) {
+      console.log(err)
+      res.status(500).send({error: "An error has occured"})
+      return
+      // throw err
+
+    }else if(response.length == 0) {
+      res.status(500).send({error: "An error has occured"})
+    }else {
+      res.status(200).send(response)
+    }
+  })
+
+})
+
+
+
+
+app.get('/properties/:id', (req, res) => {
+  const query = `SELECT property.*, location.* FROM property INNER JOIN location ON property.location_id = location.id   WHERE property.id = ?`;
+  db.query(query, [req.params.id] ,(error, results) => {
     if (error) {
       console.error(error);
       res.status(500).send('Error retrieving properties');
@@ -527,9 +653,9 @@ app.get('/room', (req, res) => {
 app.get("/room/:id", (req, res) => {
 
  // Query to retrieve all room information
- const roomQuery = `SELECT * FROM propertyroom`;
+ const roomQuery = `SELECT * FROM propertyroom WHERE id = ?`;
 
- db.query(roomQuery, (roomErr, roomResult) => {
+ db.query(roomQuery, [req.params.id], (roomErr, roomResult) => {
    if (roomErr) {
      console.error(roomErr);
      res.status(500).send('Error retrieving room information');
@@ -593,6 +719,18 @@ app.get("/room/:id", (req, res) => {
   //   }
   // });
 
+
+  // Error handing for routes that don't exist
+
+  app.get('*', (req, res) => {
+
+    res.status(404).send({error: "Route doesn't exist"})
+  })
+
+  app.post('*', (req, res) => {
+
+    res.status(404).send({error: "Route doesn't exist"})
+  })
 
 
 
