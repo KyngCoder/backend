@@ -3,12 +3,12 @@ import express from 'express'
 import bodyParser from 'body-parser'
 import bcrypt from 'bcryptjs'
 import jwt from "jsonwebtoken";
+import validator from 'validator';
+// import nodemailer from 'nodemailer'
 
 import mysql from 'mysql'
 
-
 const app = express()
-
 
 app.use(express.json())
 
@@ -42,6 +42,8 @@ app.use(bodyParser.urlencoded({
 
 //connecting to mysql
 
+
+
 const db = mysql.createConnection({
     host:"localhost",
     user:"root",
@@ -52,12 +54,18 @@ const db = mysql.createConnection({
 db.connect(function(err) {
     if (err) throw err;
     console.log('Database is connected successfully !');
-  });
+});
 
 //creating routes
 app.get("/",(req,res)=>{
     res.json("Welcome... this is our API. This is a simple way to check if the api is working.")
 })
+
+export default function handler(req, res) {
+  res.status(200).end('Hello Cron!');
+}  
+
+
 
 app.get("/user", (req, res)=>{
     const q = "SELECT * FROM user"
@@ -91,40 +99,48 @@ app.get("/user/:id", (req, res) => {
 
 
 // adds a new user
-app.post('/createUser', (req, res) => {
-    const { first_name, last_name, gender, date_of_birth, email_address, phone_number, nationality, language, username, password } = req.body;
-  
-    console.log(first_name, last_name, gender, date_of_birth, email_address, phone_number, nationality, language, password);
+// you should not be here
+// adds a new user
+app.post('/createUser', async (req, res) => {
+  const { first_name, last_name, gender, date_of_birth, email_address, phone_number, nationality, language, username, password } = req.body;
 
+  console.log("before validate", first_name, last_name, gender, date_of_birth, email_address, phone_number, nationality, language, password);
 
-      // Check if username already exists in login table
-  const loginSql = 'SELECT * FROM login WHERE username = ?';
-  db.query(loginSql, [username], (err, result) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'An error occurred' });
+  try {
+    // Validate input fields
+    if (!validator.isEmail(email_address)) {
+      console.log('invalid email')
+      return res.status(400).json({ error: 'Invalid email address' });
     }
 
-    if (result.length > 0) {
+    if (!validator.isMobilePhone(phone_number)) {
+      console.log('invalid phone')
+      return res.status(400).json({ error: 'Invalid phone number' });
+    }
+
+    if (!validator.isStrongPassword(password, { minLength: 8 })) {
+      console.log('invalid passw')
+      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+    }
+
+    // Check if username already exists
+    const loginSql = 'SELECT * FROM login WHERE username = ?';
+    const loginResult = db.query(loginSql, [username]);
+
+    if (loginResult.length > 0) {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-})
-
-
-  
     // Check if user with email already exists
     const sql = 'SELECT * FROM user WHERE email_address = ?';
-    db.query(sql, [email_address], (err, result) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: 'An error occurred' });
-      }
-  
-      if (result.length > 0) {
-        return res.status(400).json({ error: 'User with email already exists' });
-      }
-  
+    const result =  db.query(sql, [email_address]);
+
+    if (result.length > 0) {
+      return res.status(400).json({ error: 'User with email already exists' });
+    }
+
+
+
       // Hash password and insert new user into database
       const hashedPassword = bcrypt.hashSync(password, 10);
       const insertSql = 'INSERT INTO user (email_address, first_name, last_name, gender, date_of_birth, phone_number, nationality, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
@@ -156,14 +172,25 @@ app.post('/createUser', (req, res) => {
           };
 
           const token = jwt.sign(tokenPayload, 'secret');
+          console.log("success")
 
           return res.json({ message: 'User registered successfully', token });
+ 
+
         });
 
        
       });
-    });
-  });
+    
+}catch(err){
+  console.log(err)
+  return
+}
+}
+);
+
+
+
 
 
 
@@ -171,8 +198,14 @@ app.post('/createUser', (req, res) => {
 
 // Login route
 app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-  
+
+  console.log("Here we are again")
+
+    let { username, password } = req.body;
+  username = username.trimStart();
+  password = password.trimStart()
+    console.log(username, password)
+
     try {
       // Check if user with username exists in login table
       const sql = 'SELECT * FROM login WHERE username = ?';
@@ -204,7 +237,7 @@ app.post('/login', async (req, res) => {
   
         const token = jwt.sign(tokenPayload, 'secret');
         
-        return res.json({ message: 'User logged in successfully', token });
+        return res.json({ message: 'User logged in successfully', token, userId: user.user_id });
       });
     } catch (error) {
       console.error(error);
@@ -386,86 +419,6 @@ app.get('/properties/:id', (req, res) => {
 });
 
 
-// route to add a new room
-
-  
-// app.post('/createRoom', (req, res) => {
-//   const roomInfo = req.body;
-//   const {
-//     property_id,
-//     floor,
-//     room_type,
-//     amenities_id,
-//     availablity_status,
-//     ratings,
-//     images,
-//     description,
-//     base_price,
-//     num_beds,
-//     max_guests,
-//     num_baths,
-//     property_name
-//   } = roomInfo;
-
-//   console.log("room info", roomInfo);
-
-//   const propquery = `SELECT * from property where property_name = '${property_name}'`;
-
-//   console.log(propquery);
-
-//   db.query(propquery, (err, result) => {
-//     console.log("propquery result", result);
-
-//     if (err) {
-//       console.log(err);
-//     }
-
-//     console.log("Result is", result);
-//     if (result.length == 0) {
-//       console.log("nothing exist");
-//       res.send("Nothing exist");
-//     } else {
-//       console.log(images);
-
-//       const imageQueries = images.map(image => {
-//         return new Promise((resolve, reject) => {
-//           db.query('INSERT INTO propertyroom (floor, availablity_status, ratings, images, description, property_id, room_type,base_price,  num_beds, num_baths, max_guests, property_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [floor, availablity_status, ratings, Buffer.from(image, 'base64'), description, property_id, room_type,base_price, num_beds, num_baths, max_guests, property_name], (err, result) => {
-//             if (err) {
-//               console.log(err);
-//               reject(err);
-//             } else {
-//               const room_id = result.insertId;
-//               const amenitiesQuery = 'INSERT INTO amenities (propertyroom_id, amenitieslist_id) VALUES (?, ?)';
-//               amenities_id.forEach((amenityId) => {
-//                 console.log("amenityID", amenityId, room_id)
-//                 db.query(amenitiesQuery, [room_id, amenityId], (err, amenitiesResult) => {
-//                   console.log(amenitiesResult)
-//                   if (err) {
-//                     console.error(err);
-//                     res.status(500).send('Error creating amenities for room');
-//                     return;
-//                   }else{
-//                     console.log(amenitiesResult)
-//                   }
-//                 });
-//               });
-//               resolve();
-//             }
-//           });
-//         });
-//       });
-
-//       Promise.all(imageQueries)
-//         .then(() => {
-//           res.status(201).json({ message: 'Room created successfully' });
-//         })
-//         .catch(error => {
-//           console.log(error);
-//           res.status(500).send('Error creating room');
-//         });
-//     }
-//   });
-// });
 
 app.post('/createRoom', (req, res) => {
   const roomInfo = req.body;
@@ -597,6 +550,9 @@ const imagesString = JSON.stringify(arrayOfImages);
 //   });
 // }); 
 
+
+
+
 app.get('/room', (req, res) => {
   // Query to retrieve all room information
   const roomQuery = `SELECT * FROM propertyroom`;
@@ -720,6 +676,52 @@ app.get("/room/:id", (req, res) => {
   // });
 
 
+  // bookings post route to add a new booking to the database
+  app.post('/bookings', (req, res) => {
+    const {room_id, user_id, num_guests, check_in, check_out, cost } = req.body
+
+    // res.send([...data])
+
+    const bookQuery = "INSERT INTO bookings ( room_id, user_id, num_guests, check_in, check_out, cost) VALUES (?,?,?,?,?, ?)"
+
+    db.query(bookQuery, [room_id, user_id, num_guests, check_in, check_out, cost], (err, response) => {
+
+        if(err) {
+          console.error(err)
+          res.status(500).send({error: err})
+        }else {
+          res.status(200).send("Success")
+        }
+    })
+
+    // res.send("Booking route")
+
+  })
+
+  app.get('/bookings/:id', (req, res) => {
+
+      const id = req.params.id
+
+      const query = "SELECT * FROM propertyroom INNER JOIN  bookings ON propertyroom.id = bookings.room_id WHERE bookings.user_id = ?"
+
+      db.query(query, [id], (err, result) => {
+
+        if(err) {
+          console.log(err)
+          res.status(500).send({error: err})
+        }else {
+          console.log(result)
+          res.status(200).send(result)
+        }
+
+      })
+  })
+
+
+  app.get('/friends', (req, res) => {
+    res.send("FRIENDS")
+  })
+  
   // Error handing for routes that don't exist
 
   app.get('*', (req, res) => {
@@ -727,10 +729,49 @@ app.get("/room/:id", (req, res) => {
     res.status(404).send({error: "Route doesn't exist"})
   })
 
-  app.post('*', (req, res) => {
+  // app.post('*', (req, res) => {
 
-    res.status(404).send({error: "Route doesn't exist"})
-  })
+  //   console.log(req.body)
+  //   res.status(404).send({error: "Route doesn't exist"})
+  // })
+
+
+ 
+  app.post('/sendemail', (req, res) => {
+    // Get the recipient's email address and message from the request body
+    const { to, subject, text } = req.body;
+    console.log(req.body)
+  
+    // Set up the transporter object with your email service provider's SMTP settings
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'heslopd23@gmail.com',
+        pass: 'aspedassds'
+      }
+    });
+  
+    // Create an email message with the necessary details
+    const mailOptions = {
+      from: 'heslopd23@gmail.com',
+      to: to,
+      subject: subject,
+      text: text
+    };
+  
+    // Send the email using the transporter object
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.log(error);
+        res.status(500).send('Error sending email');
+      } else {
+        console.log('Email sent: ' + info.response);
+        res.status(200).send('Email sent successfully');
+      }
+    });
+  });
 
 
 
